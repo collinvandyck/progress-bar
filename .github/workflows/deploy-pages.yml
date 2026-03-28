@@ -27,7 +27,8 @@ jobs:
       - name: Build WASM
         run: |
           go mod vendor
-          cp wasm/patches/*.go vendor/charm.land/bubbletea/v2/
+          cp wasm/patches/tty_js.go wasm/patches/signals_js.go vendor/github.com/charmbracelet/bubbletea/
+          cp wasm/patches/console_js.go vendor/github.com/containerd/console/
           GOOS=js GOARCH=wasm go build -mod=vendor -ldflags="-s -w" -o wasm/web/progressbar.wasm ./wasm/
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" wasm/web/
 
