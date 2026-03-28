@@ -12,3 +12,5 @@ vendor/
 
 # Superpowers brainstorm sessions
 .superpowers/
+*.png
+.playwright-mcp
