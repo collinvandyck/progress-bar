@@ -180,6 +180,11 @@ test:
     go test ./...
 ```
 
+## Edge Cases
+
+- **`Progress()` returns `(0, 0)`**: render an empty bar at 0%. No division by zero, no indeterminate state — the widget is deterministic only. If the provider hasn't started yet, that's a valid state.
+- **`Run()` output rendering**: in phase 1, `Run()` does not render captured output. It starts the TUI and tears down on context cancellation. Output rendering above/below the widget is a follow-up concern.
+
 ## Design Principles
 
 - **Interfaces over implementations**: `DataProvider` and `io.Reader` are the contracts. The widget doesn't care how data is produced.
