@@ -1,0 +1,13 @@
+# Build artifacts
+*.wasm
+wasm_exec.js
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Superpowers brainstorm sessions
+.superpowers/
