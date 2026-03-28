@@ -6,10 +6,9 @@ import (
 	"bytes"
 	"io"
 	"sync"
+	"sync/atomic"
 	"syscall/js"
 	"time"
-
-	tea "charm.land/bubbletea/v2"
 )
 
 // wasmInput is an io.Reader backed by a buffer that JS writes into via
@@ -64,9 +63,11 @@ var (
 	output = &wasmOutput{}
 )
 
-// RegisterBridge registers three JS global functions for communicating with
-// the BubbleTea program running inside WASM.
-func RegisterBridge(prog *tea.Program) {
+// RegisterBridgeSimple registers JS global functions for the WASM demo.
+// Uses an atomic width pointer instead of a tea.Program for resize handling,
+// since we bypass BubbleTea's renderer for WASM (its cell-level ANSI diffs
+// don't survive polled I/O).
+func RegisterBridgeSimple(width *atomic.Int32) {
 	global := js.Global()
 
 	// bubbletea_write(string) — JS pushes keyboard input to Go.
@@ -88,10 +89,7 @@ func RegisterBridge(prog *tea.Program) {
 		if len(args) < 2 {
 			return nil
 		}
-		prog.Send(tea.WindowSizeMsg{
-			Width:  args[0].Int(),
-			Height: args[1].Int(),
-		})
+		width.Store(int32(args[0].Int()))
 		return nil
 	}))
 }
