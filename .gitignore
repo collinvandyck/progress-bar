@@ -1,6 +1,7 @@
 # Build artifacts
 *.wasm
 wasm_exec.js
+vendor/
 
 # IDE
 .idea/

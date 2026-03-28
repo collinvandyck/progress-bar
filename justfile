@@ -8,8 +8,11 @@ test:
 
 # Build WASM demo
 wasm:
-    GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o wasm/web/progressbar.wasm ./wasm/
+    go mod vendor
+    cp wasm/patches/*.go vendor/charm.land/bubbletea/v2/
+    GOOS=js GOARCH=wasm go build -mod=vendor -ldflags="-s -w" -o wasm/web/progressbar.wasm ./wasm/
     cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" wasm/web/
+    rm -rf vendor/
 
 # Serve WASM demo locally
 serve: wasm
