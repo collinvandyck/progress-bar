@@ -30,20 +30,20 @@ func (d *demoProvider) KeyValues() []progressbar.KeyValue {
 		rate = float64(cur) / elapsed.Seconds()
 	}
 	return []progressbar.KeyValue{
-		{Key: "Elapsed", Value: elapsed.String()},
-		{Key: "Rate", Value: fmt.Sprintf("%.0f/s", rate)},
-		{Key: "Items", Value: fmt.Sprintf("%d/%d", cur, d.total)},
-		{Key: "Errors", Value: "0"},
+		{Key: "⏱ Elapsed", Value: elapsed.String()},
+		{Key: "⚡ Rate", Value: fmt.Sprintf("%.0f/s", rate)},
+		{Key: "◇ Items", Value: fmt.Sprintf("%d/%d", cur, d.total)},
+		{Key: "✗ Errors", Value: "0"},
 	}
 }
 
 func (d *demoProvider) Sections() []progressbar.Section {
 	cur := int(d.current.Load())
 	if cur >= d.total {
-		return []progressbar.Section{{Title: "Status", Content: "Done!"}}
+		return []progressbar.Section{{Title: "", Content: "✓ Done"}}
 	}
 	return []progressbar.Section{
-		{Title: "Status", Content: fmt.Sprintf("Processing item %d...", cur)},
+		{Title: "", Content: fmt.Sprintf("→ Processing item %d⋯", cur)},
 	}
 }
 
@@ -66,7 +66,11 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 	// Sections
 	var sectionLines []string
 	for _, s := range sections {
-		sectionLines = append(sectionLines, s.Title+"\n"+s.Content)
+		if s.Title != "" {
+			sectionLines = append(sectionLines, s.Title+"\n"+s.Content)
+		} else {
+			sectionLines = append(sectionLines, s.Content)
+		}
 	}
 
 	// Bar — Unicode block characters rendered via xterm.js WebGL addon
@@ -104,11 +108,19 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 	bar.WriteRune(']')
 	bar.WriteString(suffix)
 
+	// Separator
+	sepWidth := 50
+	if width > 0 && width < sepWidth {
+		sepWidth = width
+	}
+	sep := strings.Repeat("─", sepWidth)
+
 	// Assemble: LayoutBarBottom
 	var lines []string
 	if kvsLine != "" {
 		lines = append(lines, kvsLine)
 	}
+	lines = append(lines, sep)
 	for _, sl := range sectionLines {
 		// Sections can have \n in them (Title\nContent)
 		lines = append(lines, strings.Split(sl, "\n")...)
