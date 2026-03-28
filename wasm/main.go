@@ -69,8 +69,8 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 		sectionLines = append(sectionLines, s.Title+"\n"+s.Content)
 	}
 
-	// Bar — use ASCII chars for xterm.js compatibility (Unicode blocks
-	// render as double-width in many terminal fonts, causing garbled output).
+	// Bar — Unicode block characters rendered via xterm.js WebGL addon
+	// which draws them with vector math instead of font glyphs.
 	pct := 0
 	if total > 0 {
 		pct = current * 100 / total
@@ -96,9 +96,9 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 	bar.WriteRune('[')
 	for i := 0; i < barWidth; i++ {
 		if i < filled {
-			bar.WriteByte('=')
+			bar.WriteRune('█')
 		} else {
-			bar.WriteByte(' ')
+			bar.WriteRune('░')
 		}
 	}
 	bar.WriteRune(']')

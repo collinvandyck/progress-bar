@@ -73,6 +73,16 @@
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(document.getElementById("terminal"));
+
+    // WebGL renderer draws block/box characters with vector math
+    // instead of font glyphs — pixel-perfect Unicode rendering.
+    try {
+        const webglAddon = new WebglAddon.WebglAddon();
+        term.loadAddon(webglAddon);
+    } catch (e) {
+        console.warn("WebGL addon failed, falling back to DOM renderer:", e);
+    }
+
     fitAddon.fit();
     term.focus();
 
