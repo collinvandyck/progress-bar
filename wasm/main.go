@@ -69,7 +69,8 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 		sectionLines = append(sectionLines, s.Title+"\n"+s.Content)
 	}
 
-	// Bar
+	// Bar — use ASCII chars for xterm.js compatibility (Unicode blocks
+	// render as double-width in many terminal fonts, causing garbled output).
 	pct := 0
 	if total > 0 {
 		pct = current * 100 / total
@@ -78,6 +79,11 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 	barWidth := width - 2 - len(suffix)
 	if barWidth < 1 {
 		barWidth = 1
+	}
+	// Cap bar width for readability
+	const maxBarWidth = 50
+	if barWidth > maxBarWidth {
+		barWidth = maxBarWidth
 	}
 	filled := 0
 	if total > 0 {
@@ -90,26 +96,37 @@ func renderFrame(provider progressbar.DataProvider, width int) string {
 	bar.WriteRune('[')
 	for i := 0; i < barWidth; i++ {
 		if i < filled {
-			bar.WriteRune('█')
+			bar.WriteByte('=')
 		} else {
-			bar.WriteRune('░')
+			bar.WriteByte(' ')
 		}
 	}
 	bar.WriteRune(']')
 	bar.WriteString(suffix)
 
 	// Assemble: LayoutBarBottom
-	var parts []string
+	var lines []string
 	if kvsLine != "" {
-		parts = append(parts, kvsLine)
+		lines = append(lines, kvsLine)
 	}
 	for _, sl := range sectionLines {
-		parts = append(parts, sl)
+		// Sections can have \n in them (Title\nContent)
+		lines = append(lines, strings.Split(sl, "\n")...)
 	}
-	parts = append(parts, bar.String())
+	lines = append(lines, bar.String())
 
-	// Cursor home + clear screen + content
-	return "\x1b[H\x1b[2J" + strings.Join(parts, "\n")
+	// Each line ends with \e[K (clear to end of line) to prevent
+	// residual characters from previous frames.
+	// JS side prepends \e[H (cursor home) and appends \e[J (clear below).
+	var frame strings.Builder
+	for i, line := range lines {
+		frame.WriteString(line)
+		frame.WriteString("\x1b[K") // clear to end of line
+		if i < len(lines)-1 {
+			frame.WriteString("\r\n")
+		}
+	}
+	return frame.String()
 }
 
 func main() {
@@ -127,16 +144,12 @@ func main() {
 	var width atomic.Int32
 	width.Store(80)
 
-	RegisterBridgeSimple(&width)
+	// JS calls bubbletea_read() on each poll interval.
+	// Each call renders a fresh frame — no Go-side render loop needed.
+	RegisterBridgeSimple(&width, func() string {
+		return renderFrame(provider, int(width.Load()))
+	})
 
-	// Wait for JS bridge + initial resize.
-	time.Sleep(300 * time.Millisecond)
-
-	// Render loop: full-frame redraws at 10fps.
-	for {
-		w := int(width.Load())
-		frame := renderFrame(provider, w)
-		output.Write([]byte(frame))
-		time.Sleep(100 * time.Millisecond)
-	}
+	// Block forever.
+	select {}
 }

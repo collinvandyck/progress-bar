@@ -14,8 +14,9 @@
     let go;
     try {
         go = new Go();
+        const wasmUrl = "progressbar.wasm?v=" + Date.now();
         const result = await WebAssembly.instantiateStreaming(
-            fetch("progressbar.wasm"),
+            fetch(wasmUrl),
             go.importObject
         );
         // run is intentionally not awaited — it resolves when the Go program exits
@@ -88,13 +89,23 @@
         bubbletea_write(data);
     });
 
-    // Go output -> terminal (poll at 50ms)
-    setInterval(function () {
-        var output = bubbletea_read();
-        if (output && output.length > 0) {
-            term.write(output);
+    // Enter alternate screen buffer — fixed canvas, no scrollback.
+    // This is how BubbleTea renders in a real terminal too.
+    term.write("\x1b[?1049h");
+
+    // Go output -> terminal. Renders one complete frame at a time.
+    var pending = false;
+    function pollOutput() {
+        if (pending) return;
+        var frame = bubbletea_read();
+        if (frame && frame.length > 0) {
+            pending = true;
+            term.write("\x1b[H" + frame + "\x1b[J", function () {
+                pending = false;
+            });
         }
-    }, 50);
+    }
+    setInterval(pollOutput, 100);
 
     // Terminal resize -> Go
     term.onResize(function (size) {

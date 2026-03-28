@@ -3,71 +3,32 @@
 package main
 
 import (
-	"bytes"
-	"io"
 	"sync"
 	"sync/atomic"
 	"syscall/js"
-	"time"
 )
 
-// wasmInput is an io.Reader backed by a buffer that JS writes into via
-// the bubbletea_write global function.
+// wasmInput is an io.Reader backed by a buffer that JS writes into.
+// Not used in direct rendering mode but kept for future use.
 type wasmInput struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (w *wasmInput) Read(p []byte) (int, error) {
-	for {
-		w.mu.Lock()
-		n, err := w.buf.Read(p)
-		w.mu.Unlock()
-		if n > 0 || err != io.EOF {
-			return n, err
-		}
-		// Buffer empty — poll.
-		time.Sleep(50 * time.Millisecond)
-	}
+	mu   sync.Mutex
+	data []byte
 }
 
 func (w *wasmInput) Write(data []byte) {
 	w.mu.Lock()
-	w.buf.Write(data)
+	w.data = append(w.data, data...)
 	w.mu.Unlock()
 }
 
-// wasmOutput is an io.Writer backed by a buffer that JS reads from via
-// the bubbletea_read global function.
-type wasmOutput struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (w *wasmOutput) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-func (w *wasmOutput) Drain() string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	s := w.buf.String()
-	w.buf.Reset()
-	return s
-}
-
 var (
-	input  = &wasmInput{}
-	output = &wasmOutput{}
+	input = &wasmInput{}
 )
 
 // RegisterBridgeSimple registers JS global functions for the WASM demo.
-// Uses an atomic width pointer instead of a tea.Program for resize handling,
-// since we bypass BubbleTea's renderer for WASM (its cell-level ANSI diffs
-// don't survive polled I/O).
-func RegisterBridgeSimple(width *atomic.Int32) {
+// The render function is called by JS on each animation frame — JS pulls
+// frames instead of Go pushing them, which eliminates frame overlap.
+func RegisterBridgeSimple(width *atomic.Int32, renderFn func() string) {
 	global := js.Global()
 
 	// bubbletea_write(string) — JS pushes keyboard input to Go.
@@ -79,9 +40,11 @@ func RegisterBridgeSimple(width *atomic.Int32) {
 		return nil
 	}))
 
-	// bubbletea_read() string — JS pulls rendered terminal output from Go.
+	// bubbletea_read() string — JS pulls the current rendered frame.
+	// Called by JS on a setInterval. Each call renders a fresh frame
+	// from the provider, so there's no buffer to accumulate or drain.
 	global.Set("bubbletea_read", js.FuncOf(func(_ js.Value, _ []js.Value) any {
-		return output.Drain()
+		return renderFn()
 	}))
 
 	// bubbletea_resize(cols, rows) — JS tells Go about terminal size changes.
