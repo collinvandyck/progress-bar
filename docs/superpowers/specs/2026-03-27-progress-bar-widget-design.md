@@ -162,6 +162,8 @@ Compile the widget to WASM for browser-based interactive demos.
 
 The WASM layer is a separate entrypoint that imports the `progressbar` package. The core library has zero WASM awareness — no build tags leak into library code.
 
+**Hosting:** GitHub Pages, deployed from a `just wasm` build. The WASM workflow should be solid and prioritized — it's the primary way to share demos.
+
 Build target: `just wasm`
 
 ## Build Targets (justfile)
