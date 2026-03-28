@@ -5,11 +5,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	progressbar "github.com/collin/progress-bar"
 )
 
-const total = 500
+const totalItems = 500
 
 // provider implements progressbar.DataProvider.
 type provider struct {
@@ -22,14 +22,12 @@ func newProvider() *provider {
 	return &provider{start: time.Now()}
 }
 
-// simulate does the "work": increments the counter once per 20ms until done.
 func (p *provider) simulate() {
 	for {
 		current := p.counter.Load()
-		if current >= total {
+		if current >= totalItems {
 			return
 		}
-		// Occasionally log a fake error to make the display interesting.
 		if current > 0 && current%73 == 0 {
 			p.errors.Add(1)
 		}
@@ -38,8 +36,8 @@ func (p *provider) simulate() {
 	}
 }
 
-func (p *provider) Progress() (current, total int) {
-	return int(p.counter.Load()), total
+func (p *provider) Progress() (int, int) {
+	return int(p.counter.Load()), totalItems
 }
 
 func (p *provider) KeyValues() []progressbar.KeyValue {
@@ -54,7 +52,7 @@ func (p *provider) KeyValues() []progressbar.KeyValue {
 	return []progressbar.KeyValue{
 		{Key: "Elapsed", Value: elapsed.Round(time.Millisecond).String()},
 		{Key: "Rate", Value: fmt.Sprintf("%.1f items/s", rate)},
-		{Key: "Items", Value: fmt.Sprintf("%d / %d", current, total)},
+		{Key: "Items", Value: fmt.Sprintf("%d / %d", current, totalItems)},
 		{Key: "Errors", Value: fmt.Sprintf("%d", p.errors.Load())},
 	}
 }
@@ -62,7 +60,7 @@ func (p *provider) KeyValues() []progressbar.KeyValue {
 func (p *provider) Sections() []progressbar.Section {
 	current := p.counter.Load()
 	var msg string
-	if current >= total {
+	if current >= totalItems {
 		msg = "Done."
 	} else {
 		msg = fmt.Sprintf("Processing item %d...", current)
@@ -72,7 +70,6 @@ func (p *provider) Sections() []progressbar.Section {
 	}
 }
 
-// parentModel wraps the progress bar and handles quit keys.
 type parentModel struct {
 	progress progressbar.Model
 }
@@ -83,7 +80,7 @@ func (m parentModel) Init() tea.Cmd {
 
 func (m parentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
+	case tea.KeyMsg:
 		if msg.String() == "q" || msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
@@ -93,7 +90,7 @@ func (m parentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m parentModel) View() tea.View {
+func (m parentModel) View() string {
 	return m.progress.View()
 }
 
@@ -104,11 +101,10 @@ func main() {
 	model := parentModel{
 		progress: progressbar.New(progressbar.Options{
 			Provider: p,
-			// Layout defaults to LayoutBarBottom — no need to set it.
 		}),
 	}
 
-	prog := tea.NewProgram(model)
+	prog := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := prog.Run(); err != nil {
 		fmt.Printf("error: %v\n", err)
 	}

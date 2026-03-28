@@ -3,7 +3,7 @@ package progressbar
 import (
 	"time"
 
-	tea "charm.land/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 const defaultTickInterval = 100 * time.Millisecond
@@ -11,7 +11,7 @@ const defaultTickInterval = 100 * time.Millisecond
 // TickMsg triggers a re-read from the DataProvider.
 type TickMsg time.Time
 
-// Model is a BubbleTea v2 model that renders a progress bar widget.
+// Model is a BubbleTea model that renders a progress bar widget.
 type Model struct {
 	opts Options
 
@@ -42,7 +42,7 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case TickMsg:
 		if m.opts.Provider != nil {
 			m.current, m.total = m.opts.Provider.Progress()
@@ -51,14 +51,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, doTick()
 	case tea.WindowSizeMsg:
-		wsm := msg.(tea.WindowSizeMsg)
-		m.width = wsm.Width
+		m.width = msg.Width
 		return m, nil
 	}
 	return m, nil
 }
 
 // View renders the widget.
-func (m Model) View() tea.View {
-	return tea.NewView(m.renderView())
+func (m Model) View() string {
+	return m.renderView()
 }

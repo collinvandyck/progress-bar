@@ -4,14 +4,14 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
 
 	progressbar "github.com/collin/progress-bar"
 )
 
-// demoProvider is a DataProvider that simulates progress for the WASM demo.
 type demoProvider struct {
 	current atomic.Int64
 	total   int
@@ -47,104 +47,18 @@ func (d *demoProvider) Sections() []progressbar.Section {
 	}
 }
 
-// renderFrame renders the widget directly from a DataProvider.
-// This bypasses BubbleTea's renderer, which uses cell-level ANSI diffs
-// that don't survive polled I/O in WASM. Instead we do full redraws
-// with cursor-home + clear, which xterm.js handles cleanly.
-func renderFrame(provider progressbar.DataProvider, width int) string {
-	current, total := provider.Progress()
-	kvs := provider.KeyValues()
-	sections := provider.Sections()
+// outputWriter wraps the shared output buffer as an io.Writer.
+type outputWriter struct{}
 
-	// KVs
-	kvParts := make([]string, len(kvs))
-	for i, kv := range kvs {
-		kvParts[i] = kv.Key + ": " + kv.Value
-	}
-	kvsLine := strings.Join(kvParts, "  ")
-
-	// Sections
-	var sectionLines []string
-	for _, s := range sections {
-		if s.Title != "" {
-			sectionLines = append(sectionLines, s.Title+"\n"+s.Content)
-		} else {
-			sectionLines = append(sectionLines, s.Content)
-		}
-	}
-
-	// Bar — Unicode block characters rendered via xterm.js WebGL addon
-	// which draws them with vector math instead of font glyphs.
-	pct := 0
-	if total > 0 {
-		pct = current * 100 / total
-	}
-	suffix := fmt.Sprintf(" %d%% (%d/%d)", pct, current, total)
-	barWidth := width - 2 - len(suffix)
-	if barWidth < 1 {
-		barWidth = 1
-	}
-	// Cap bar width for readability
-	const maxBarWidth = 50
-	if barWidth > maxBarWidth {
-		barWidth = maxBarWidth
-	}
-	filled := 0
-	if total > 0 {
-		filled = current * barWidth / total
-	}
-	if filled > barWidth {
-		filled = barWidth
-	}
-	var bar strings.Builder
-	bar.WriteRune('[')
-	for i := 0; i < barWidth; i++ {
-		if i < filled {
-			bar.WriteRune('█')
-		} else {
-			bar.WriteRune('░')
-		}
-	}
-	bar.WriteRune(']')
-	bar.WriteString(suffix)
-
-	// Separator
-	sepWidth := 50
-	if width > 0 && width < sepWidth {
-		sepWidth = width
-	}
-	sep := strings.Repeat("─", sepWidth)
-
-	// Assemble: LayoutBarBottom
-	var lines []string
-	if kvsLine != "" {
-		lines = append(lines, kvsLine)
-	}
-	lines = append(lines, sep)
-	for _, sl := range sectionLines {
-		// Sections can have \n in them (Title\nContent)
-		lines = append(lines, strings.Split(sl, "\n")...)
-	}
-	lines = append(lines, bar.String())
-
-	// Each line ends with \e[K (clear to end of line) to prevent
-	// residual characters from previous frames.
-	// JS side prepends \e[H (cursor home) and appends \e[J (clear below).
-	var frame strings.Builder
-	for i, line := range lines {
-		frame.WriteString(line)
-		frame.WriteString("\x1b[K") // clear to end of line
-		if i < len(lines)-1 {
-			frame.WriteString("\r\n")
-		}
-	}
-	return frame.String()
+func (outputWriter) Write(p []byte) (int, error) {
+	fromGo.mu.Lock()
+	defer fromGo.mu.Unlock()
+	return fromGo.buf.Write(p)
 }
 
 func main() {
 	provider := &demoProvider{total: 200, start: time.Now()}
 
-	// Simulate progress in background.
 	go func() {
 		for provider.current.Load() < int64(provider.total) {
 			time.Sleep(50 * time.Millisecond)
@@ -152,16 +66,22 @@ func main() {
 		}
 	}()
 
-	// Terminal width, updated by JS resize events.
-	var width atomic.Int32
-	width.Store(80)
-
-	// JS calls bubbletea_read() on each poll interval.
-	// Each call renders a fresh frame — no Go-side render loop needed.
-	RegisterBridgeSimple(&width, func() string {
-		return renderFrame(provider, int(width.Load()))
+	model := progressbar.New(progressbar.Options{
+		Provider: provider,
 	})
 
-	// Block forever.
+	prog := tea.NewProgram(
+		model,
+		tea.WithInput(fromJS),
+		tea.WithOutput(outputWriter{}),
+		tea.WithAltScreen(),
+	)
+
+	RegisterBridge(prog)
+
+	go func() {
+		prog.Run()
+	}()
+
 	select {}
 }

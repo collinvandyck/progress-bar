@@ -2,13 +2,23 @@
 
 package tea
 
-// initInput is a no-op on js/wasm — there is no TTY to configure.
-// Input is supplied via tea.WithInput() from the WASM bridge.
+import (
+	"errors"
+	"os"
+)
+
 func (p *Program) initInput() error {
 	return nil
 }
 
+func (p *Program) restoreInput() error {
+	return nil
+}
+
+func openInputTTY() (*os.File, error) {
+	return nil, errors.New("unavailable in js/wasm")
+}
+
 const suspendSupported = false
 
-// suspendProcess is a no-op on js/wasm.
 func suspendProcess() {}

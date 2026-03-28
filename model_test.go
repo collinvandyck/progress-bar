@@ -3,7 +3,7 @@ package progressbar
 import (
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // stubProvider implements DataProvider for tests.
@@ -14,8 +14,8 @@ type stubProvider struct {
 }
 
 func (s *stubProvider) Progress() (int, int)  { return s.current, s.total }
-func (s *stubProvider) KeyValues() []KeyValue  { return s.kvs }
-func (s *stubProvider) Sections() []Section    { return s.sections }
+func (s *stubProvider) KeyValues() []KeyValue { return s.kvs }
+func (s *stubProvider) Sections() []Section   { return s.sections }
 
 func TestNewModel(t *testing.T) {
 	p := &stubProvider{current: 0, total: 100}
@@ -28,7 +28,6 @@ func TestNewModel(t *testing.T) {
 func TestModelImplementsTeaModel(t *testing.T) {
 	p := &stubProvider{current: 0, total: 100}
 	m := New(Options{Provider: p})
-	// Verify it satisfies tea.Model at compile time
 	var _ tea.Model = m
 }
 
